@@ -7,6 +7,7 @@ app = FastAPI(
     debug=True
 )
 
+
 class Book(BaseModel):
     id: int
     title: str
@@ -33,7 +34,7 @@ class Storage:
 
         content.append(book.__dict__)
         with open(self.filename, mode='w', encoding='utf-8') as file:
-            json.dump(content, file, indent=4, ensure_ascii=False )
+            json.dump(content, file, indent=4, ensure_ascii=False)
 
     def get_book(self, book_id: int) -> dict:
         with open(self.filename, mode='r', encoding='utf-8') as file:
@@ -45,6 +46,25 @@ class Storage:
 
         raise HTTPException(detail=f'Book id #{book_id} not found', status_code=status.HTTP_404_NOT_FOUND)
 
+    def get_books(self, skip: int = 0, limit: int = 10, q: str = ''):
+        with open(self.filename, mode='r', encoding='utf-8') as file:
+            books: list[dict] = json.load(file)
+
+        if q:
+            q = q.strip().lower()
+            filtered_books = []
+            for book in books:
+                if (
+                        q in book["author"].lower()
+                        or q in book["title"].lower()
+                        or q in book["description"].lower()
+                ):
+                    filtered_books.append(book)
+            filtered_books_slice = filtered_books[skip:][:limit]
+            return filtered_books_slice
+
+        sliced = books[skip:][:limit]
+        return sliced
 
 
 book_storage = Storage('fiction')
@@ -61,8 +81,13 @@ def create_book(new_book: Book) -> Book:
     return new_book
 
 
+@app.get("/search")
+def get_books(skip: int = 0, limit: int = 10, q: str = '') -> list[Book]:
+    books = book_storage.get_books(skip=skip, limit=limit, q=q)
+    return books
+
+
 @app.get("/{book_id}")
 def get_book(book_id: int) -> Book:
     book = book_storage.get_book(book_id)
     return book
-
